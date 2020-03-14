@@ -2,7 +2,13 @@
 using Mollie.Api.Client;
 using Mollie.Api.Models;
 using Mollie.Api.Models.Customer;
+using Mollie.Api.Models.Mandate;
+using Mollie.Api.Models.Payment;
+using Mollie.Api.Models.Payment.Request;
+using Mollie.Api.Models.Payment.Response;
 using Mollie.Api.Models.Refund;
+using Mollie.Api.Models.Subscription;
+using System;
 using System.Threading.Tasks;
 
 namespace Mollie
@@ -64,29 +70,156 @@ namespace Mollie
             }
         }
 
+        /// <summary>
+        /// Creates a payment.
+        /// </summary>
+        /// <param name="customerId">The customer's Mollie-specific id</param>
+        /// <param name="description">The payment description. This will be shown on the user's card or bank statement when possible.</param>
+        /// <param name="amount">The payment amount.</param>
+        /// <param name="redirectUrl">The URL that the user will be redirected to after the payment process.</param>
+        /// <param name="webhookUrl">The url that Mollie calls with the payment id when the payment status changes. 
+        /// The webhookUrl must be reachable from Mollie’s point of view, so you cannot use localhost. 
+        /// If you want to use webhook during development on localhost, you must use a tool like ngrok to have the webhooks delivered to your local machine.</param>
+        /// <returns>A PaymentResponse</returns>
+        public async Task<PaymentResponse> CreatePaymentAsync(string customerId, string description, decimal amount, string redirectUrl, string webhookUrl)
+        {
+            var mollieSettings = _configuration.GetSection("Mollie");
+            var apiKey = mollieSettings.GetValue<string>("APIKey");
+            var currency = mollieSettings.GetValue<string>("DefaultCurrency");
+            var paymentClient = GetPaymentClient();
+
+            var paymentRequest = new PaymentRequest
+            {
+                CustomerId = customerId,
+                Amount = new Amount
+                {
+                    Currency = currency,
+                    Value = amount.ToString()
+                },
+                Description = description,
+                RedirectUrl = redirectUrl,
+                WebhookUrl = webhookUrl
+            };
+
+            return await paymentClient.CreatePaymentAsync(paymentRequest);
+        }
+
+        /// <summary>
+        /// Process the response from Mollie API regarding the payment status.
+        /// </summary>
+        /// <param name="paymentId">The payment Id</param>
+        /// <returns></returns>
+        public async Task ProcessPaymentWebhookAsync(string paymentId)
+        {
+            var paymentClient = GetPaymentClient();
+            PaymentResponse paymentResponse = await paymentClient.GetPaymentAsync(paymentId);
+
+            // Process customer payment record on your side here. 
+            // For example, like such : 
 
 
 
+            //// Get our CustomerPayment record
+            //CustomerPayment customerPayment = await _customerPaymentRepository.FirstOrDefaultAsync(c => c.ProviderPaymentId == providerPaymentId);
 
+            //if (customerPayment != null)
+            //{
+            //    // Get payment response from Mollie
+            //    var paymentClient = GetPaymentClient();
+            //    PaymentResponse paymentResponse = await paymentClient.GetPaymentAsync(paymentId);
 
+            //    // Update your customer payment record
+            //    customerPayment.Method = paymentResponse.Method;
+            //    customerPayment.Status = paymentResponse.Status;
 
+            //    // Check and set subscription status
+            //    if ((customerPayment.Status == PaymentStatus.Expired) || (customerPayment.Status == PaymentStatus.Canceled) || (customerPayment.Status == PaymentStatus.Failed))
+            //    {
+            //        if (customerPayment.SubscriptionId != null)
+            //        {
+            //            var subscription = _subscriptionRepository.FirstOrDefault(s => s.Id == customerPayment.SubscriptionId);
+            //            subscription.Status = SubscriptionStatus.Deactivated;
+            //            await _subscriptionRepository.UpdateAsync(subscription);
+            //        }
+            //    }
 
+            //    if (customerPayment.Status == PaymentStatus.Paid)
+            //    {
+            //        if (customerPayment.SubscriptionId != null)
+            //        {
+            //            var subscription = _subscriptionRepository.FirstOrDefault(s => s.Id == customerPayment.SubscriptionId);
+            //            subscription.Status = Entities.SubscriptionStatus.Active;
+            //            await _subscriptionRepository.UpdateAsync(subscription);
+            //        }
+            //    }
 
+            //    await _customerPaymentRepository.UpdateAsync(customerPayment);
+            //}
 
+        }
 
+        public async Task<bool> CreateSubscriptionAsync(string customerId, string customerName, string iban, PaymentMethod paymentMethod, string description, DateTime startDate, decimal amount, string interval, int? times, string webhookUrl)
+        {
+            var result = false;
 
+            var mandateClient = GetMandateClient();
 
+            // Create "mandate" via Mollie to be able to create a customer subscription.
+            // Mandates allow you to charge a customer’s credit card or bank account recurrently.
+            var mandateRequest = new MandateRequest
+            {
+                ConsumerName = customerName,
+                ConsumerAccount = iban,
+                Method = paymentMethod
+            };
 
+            MandateResponse mandateResponse = await mandateClient.CreateMandateAsync(customerId, mandateRequest);
 
+            if (mandateResponse.Status == MandateStatus.Valid)
+            {
 
+                // Create your customer payment record here
 
+                var mollieSettings = _configuration.GetSection("Mollie");
+                var currency = mollieSettings.GetValue<string>("DefaultCurrency");
 
+                var subscriptionRequest = new SubscriptionRequest
+                {
+                    Amount = new Amount
+                    {
+                        Currency = currency,
+                        Value = amount.ToString()
+                    },
+                    Description = description,
+                    StartDate = startDate,
+                    Method = paymentMethod,
+                    Interval = interval, // Interval to wait between charges like 1 month(s) or 14 days
+                    Times = times, // Total number of charges for the subscription to complete. Leave empty for an on-going subscription
+                    WebhookUrl = webhookUrl // The url that Mollie calls with the payment id when the payment status changes. 
+                };
 
+                var subscriptionClient = GetSubscriptionClient();
 
+                SubscriptionResponse subscriptionResponse = await subscriptionClient.CreateSubscriptionAsync(customerId, subscriptionRequest);
 
+                if (subscriptionResponse.Status == SubscriptionStatus.Active)
+                {
+                    // Update your customer payment record here with new subscription Id
 
+                    result = true;
+                }
+            }
 
+            return result;
+        }
+        
+        public async Task CancelSubscriptionAsync(string customerId, string subscriptionId)
+        {
+            var subscriptionClient = GetSubscriptionClient();
 
+            await subscriptionClient.CancelSubscriptionAsync(customerId, subscriptionId);
+        }
+        
         /// <summary>
         /// Creates a refund.
         /// </summary>
