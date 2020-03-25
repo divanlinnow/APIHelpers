@@ -11,7 +11,7 @@ namespace Ingenico.Entities
 
         /// <summary>
         /// The merchant reference that gets given to Ingenico to help identify the customer payment record on Ingenico's API.
-        /// Can't simply use the CustomerPayment Id, since this gets used across all Ingenico environments (dev and test) and Ids could overlap across environments.
+        /// Use GUID instead of CustomerPayment Id, since this gets used across all Ingenico environments (dev and test) and Ids could overlap across environments.
         /// </summary>
         public virtual Guid? MerchantReference { get; set; }
 

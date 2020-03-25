@@ -22,5 +22,29 @@ namespace Ingenico.Entities
         public virtual string PhoneNumber { get; set; }
 
         public virtual List<Address> Addresses { get; set; }
+
+        /// <summary>
+        /// Payment Product Id.  
+        /// When Ingenico API calls to our webhook with payment response, we need to handle it and populate this value. 
+        /// </summary>
+        public virtual int? PaymentProductId { get; set; }
+
+        /// <summary>
+        /// Token.
+        /// When Ingenico API calls to our webhook with payment response, we need to handle it and populate this value. 
+        /// If customer paid via credit card, then this will be populated. 
+        /// This will be used by Ingenico to make recurring payments. 
+        /// </summary>
+        [MaxLength(100)]
+        public virtual string Token { get; set; }
+
+        /// <summary>
+        /// MandateReference.
+        /// When Ingenico API calls to our webhook with payment response, we need to handle it and populate this value. 
+        /// If customer paid via direct debit, then this will be populated. 
+        /// This will be used by Ingenico to make recurring payments. 
+        /// </summary>
+        [MaxLength(100)]
+        public virtual string MandateReference { get; set; }
     }
 }

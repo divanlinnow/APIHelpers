@@ -41,7 +41,7 @@ namespace Ingenico
         /// <param name="customerPayment"></param>
         /// <param name="returnUrl">The URL that the user will be redirected to after the payment process.</param>
         /// <returns></returns>
-        public async Task<string> CreateHostedCheckout(Entities.Customer customer, Entities.CustomerPayment customerPayment, string returnUrl)
+        public async Task<string> CreateHostedCheckoutAsync(Entities.Customer customer, Entities.CustomerPayment customerPayment, string returnUrl)
         {
             var result = string.Empty;
 
@@ -86,7 +86,7 @@ namespace Ingenico
                     }
                 };
 
-                // Create Hosted Checkout for recurring direct debit via credit card or Sepa direct debit
+                // Create Hosted Checkout for recurring monthly direct debit via credit card or Sepa direct debit payment methods for subscription purchase
 
                 var cardPaymentMethodSpecificInput = new CardPaymentMethodSpecificInputBase
                 {
@@ -151,6 +151,68 @@ namespace Ingenico
             return result;
         }
 
+        /// <summary>
+        /// Get the customer's payment method details from Ingenico.
+        /// </summary>
+        /// <param name="subscriptionId"></param>
+        /// <returns></returns>
+        public async Task<Entities.PaymentMethodDetails> GetCustomerPaymentDetailsAsync(Entities.Customer customer)
+        {
+            var result = new Entities.PaymentMethodDetails
+            {
+                Type = PaymentType.DirectDebit
+            };
+
+            using (Client client = GetClient())
+            {
+                var ingenicoSettings = _configuration.GetSection("Ingenico");
+                var merchantId = ingenicoSettings.GetValue<string>("MerchantID");
+
+                try
+                {
+                    if (customer.PaymentProductId != null)
+                    {
+                        result.PaymentProductId = customer.PaymentProductId.Value;
+                    }
+
+                    if (customer.Token != null)
+                    {
+                        var tokenResponse = await client.Merchant(merchantId).Tokens().Get(customer.Token);
+
+                        if (tokenResponse.Card != null & tokenResponse.Card.Data != null)
+                        {
+                            result.Type = PaymentType.Card;
+                            result.CardNumber = tokenResponse.Card.Data.CardWithoutCvv.CardNumber;
+                            result.CardHolderName = tokenResponse.Card.Data.CardWithoutCvv.CardholderName;
+                            result.CardExpiryDate = tokenResponse.Card.Data.CardWithoutCvv.ExpiryDate;
+                        }
+                    }
+                    else if (customer.MandateReference != null)
+                    {
+                        var mandateResponse = await client.Merchant(merchantId).Mandates().Get(customer.MandateReference);
+
+                        if (mandateResponse.Mandate != null && mandateResponse.Mandate.Customer != null)
+                        {
+                            result.Type = PaymentType.DirectDebit;
+                            result.MandateStatus = mandateResponse.Mandate.Status;
+                            result.MandateRecurrenceType = mandateResponse.Mandate.RecurrenceType;
+                            result.MandateCustomerReference = mandateResponse.Mandate.CustomerReference;
+                            result.MandateBankAccountHolderName = mandateResponse.Mandate.Customer.BankAccountIban.AccountHolderName;
+                            result.MandateBankAccountIban = mandateResponse.Mandate.Customer.BankAccountIban.Iban;
+                            result.MandateCompanyName = mandateResponse.Mandate.Customer.CompanyName;
+                            result.MandateContactEmail = mandateResponse.Mandate.Customer.ContactDetails.EmailAddress;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    //Logger.Error("Error while getting payment details", ex);
+                }
+            }
+
+            return result;
+        }
+
         private Client GetClient()
         {
             var ingenicoSettings = _configuration.GetSection("Ingenico");
@@ -166,7 +228,7 @@ namespace Ingenico
         /// <summary>
         /// Converts a decimal amount to cents for Ingenico API.
         /// </summary>
-        /// <param name="amount"></param>
+        /// <param name="amount">The decimal monetary amount that needs to be converted.</param>
         /// <returns></returns>
         private long ConvertToIngenicoAmount(decimal amount)
         {

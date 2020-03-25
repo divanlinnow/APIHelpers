@@ -89,6 +89,8 @@
     <Compile Include="Entities\CustomerPayment.cs" />
     <Compile Include="Entities\Entity.cs" />
     <Compile Include="Entities\Enums\AddressType.cs" />
+    <Compile Include="Entities\Enums\PaymentType.cs" />
+    <Compile Include="Entities\PaymentMethodDetails.cs" />
     <Compile Include="PaymentManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
