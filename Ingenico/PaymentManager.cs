@@ -151,6 +151,125 @@ namespace Ingenico
             return result;
         }
 
+        public async Task ProcessPaymentAsync(Payment payment)
+        {
+            if (payment.PaymentOutput == null || payment.PaymentOutput.References == null || payment.PaymentOutput.References.MerchantReference == null)
+            {
+                return;
+            }
+            else
+            {
+                // Get customer payment record
+                //var customerPayment = await _customerPaymentRepository.GetAll()
+                //                                                      .Where(x => x.MerchantReference.HasValue && x.MerchantReference.Value.ToString() == payment.PaymentOutput.References.MerchantReference.ToUpper())
+                //                                                      .Include(c => c.InvoicePayments)
+                //                                                      .FirstOrDefaultAsync();
+                var customerPayment = new Entities.CustomerPayment();
+
+                if (customerPayment == null)
+                {
+                    return;
+                }
+                else
+                {
+                    //var customer = await _customerRepository.FirstOrDefaultAsync(c => c.Id == customerPayment.CustomerId);
+
+                    var customer = new Entities.Customer();
+
+                    if (customer == null || customerPayment == null)
+                    {
+                        return;
+                    }
+                    else if ((customer.Token == null || string.IsNullOrEmpty(customer.Token)) && (customer.MandateReference == null || string.IsNullOrEmpty(customer.MandateReference)))
+                    {
+                        // If the customer was previously invoiced outside the system and has now updated their payment details, then customer.Token and customer.MandateReference will both be null
+                        // So the subscription should be set to default to monthly billing and the next billing date should also be set
+                        //var subscription = await _subscriptionManager.GetEntityByIdAsync(customerPayment.SubscriptionId);
+
+                        //if (subscription.BillingPeriod == BillingPeriod.DoNotBill)
+                        //{
+                        //    subscription.BillingPeriod = BillingPeriod.Month;
+                        //    subscription.NextPaymentDueDate = CalculateSubscriptionNextPaymentDueDate(Clock.Now, subscription.BillingPeriod);
+                        //    subscription.ExpireDate = subscription.NextPaymentDueDate.Value;
+                        //    await _subscriptionManager.Update(subscription);
+                        //}
+
+                        //// Update customer payment record
+                        //customerPayment.PaymentId = payment.Id;
+                        //customerPayment.PaymenMethod = payment.PaymentOutput.PaymentMethod;
+                        //customerPayment.Status = payment.Status;
+                        //customerPayment.StatusCategory = payment.StatusOutput?.StatusCategory;
+                        //customerPayment.LastModifiedDate = Clock.Now;
+
+                        //// Card payment
+                        //if (payment.PaymentOutput.CardPaymentMethodSpecificOutput != null &&
+                        //    payment.PaymentOutput.CardPaymentMethodSpecificOutput.PaymentProductId.HasValue &&
+                        //    !string.IsNullOrEmpty(payment.PaymentOutput.CardPaymentMethodSpecificOutput.Token))
+                        //{
+
+                        //    customerPayment.PaymentProductId = payment.PaymentOutput.CardPaymentMethodSpecificOutput.PaymentProductId;
+                        //    customerPayment.Token = payment.PaymentOutput.CardPaymentMethodSpecificOutput.Token;
+
+                        //    customer.PaymentProductId = payment.PaymentOutput.CardPaymentMethodSpecificOutput.PaymentProductId;
+                        //    customer.Token = payment.PaymentOutput.CardPaymentMethodSpecificOutput.Token;
+                        //}
+
+                        //// Sepa Direct Debit payment
+                        //if (payment.PaymentOutput.SepaDirectDebitPaymentMethodSpecificOutput != null &&
+                        //    payment.PaymentOutput.SepaDirectDebitPaymentMethodSpecificOutput.PaymentProductId.HasValue &&
+                        //    payment.PaymentOutput.SepaDirectDebitPaymentMethodSpecificOutput.PaymentProduct771SpecificOutput != null &&
+                        //    !string.IsNullOrEmpty(payment.PaymentOutput.SepaDirectDebitPaymentMethodSpecificOutput.PaymentProduct771SpecificOutput.MandateReference))
+                        //{
+
+                        //    customerPayment.PaymentProductId = payment.PaymentOutput.SepaDirectDebitPaymentMethodSpecificOutput.PaymentProductId;
+                        //    customerPayment.MandateReference = payment.PaymentOutput.SepaDirectDebitPaymentMethodSpecificOutput.PaymentProduct771SpecificOutput.MandateReference;
+
+                        //    customer.PaymentProductId = payment.PaymentOutput.CardPaymentMethodSpecificOutput.PaymentProductId;
+                        //    customer.MandateReference = payment.PaymentOutput.SepaDirectDebitPaymentMethodSpecificOutput.PaymentProduct771SpecificOutput.MandateReference;
+                        //}
+
+                        //// Update CustomerPayment record
+                        //Logger.Info($"PaymentManager.ProcessPaymentAsync => Updating CustomerPayment record\n");
+                        //await _customerPaymentRepository.InsertOrUpdateAsync(customerPayment);
+
+                        //// Update Customer record
+                        //Logger.Info($"PaymentManager.ProcessPaymentAsync => Updating Customer record\n");
+                        //await _customerRepository.UpdateAsync(customer);
+
+                        //// Check payment status
+                        //if (payment.StatusOutput == null)
+                        //{
+                        //    Logger.Warn($"PaymentManager.ProcessPaymentAsync => payment.StatusOutput is null\n");
+                        //}
+                        //else
+                        //{
+                        //    if (payment.StatusOutput.StatusCategory == AppConsts.PaymentStatusCategory.COMPLETED &&
+                        //        (payment.Status == AppConsts.PaymentStatuses.CAPTURED ||
+                        //        payment.Status == AppConsts.PaymentStatuses.PAID))
+                        //    {
+                        //        // Payment succeeded
+                        //        await HandlePaymentStatusCompleted(customerPayment);
+                        //    }
+
+                        //    else if (payment.Status == AppConsts.PaymentStatuses.CAPTURE_REQUESTED)
+                        //    {
+                        //        // Sepa Direct Debit capture has been requested
+                        //        await HandlePaymentStatusCaptureRequested(customerPayment);
+                        //    }
+
+                        //    else if (payment.Status == AppConsts.PaymentStatuses.CANCELLED ||
+                        //        payment.Status == AppConsts.PaymentStatuses.REJECTED ||
+                        //        payment.Status == AppConsts.PaymentStatuses.REJECTED_CAPTURE)
+                        //    {
+                        //        // Payment failed
+                        //        await HandlePaymentStatusFailed(customerPayment);
+                        //    }
+                        //}
+                    }
+                }
+            }
+        }
+
         /// <summary>
         /// Get the customer's payment method details from Ingenico.
         /// </summary>
@@ -249,7 +368,7 @@ namespace Ingenico
 
             if (address != null)
             {
-                ingenicoCustomer.BillingAddress = GetIngenicoBillingAddress(address);
+                ingenicoCustomer.BillingAddress = ConvertToIngenicoBillingAddress(address);
             }
 
             if (string.IsNullOrEmpty(customer.Locale))
@@ -262,7 +381,7 @@ namespace Ingenico
             return ingenicoCustomer;
         }
 
-        private Address GetIngenicoBillingAddress(Entities.Address inputAddress)
+        private Address ConvertToIngenicoBillingAddress(Entities.Address inputAddress)
         {
             var address = new Address
             {
@@ -274,6 +393,87 @@ namespace Ingenico
             };
 
             return address;
+        }
+
+        /// <summary>
+        /// Payment succeeded.
+        /// </summary>
+        /// <param name="payment"></param>
+        /// <param name="customerPayment"></param>
+        /// <returns></returns>
+        private async Task HandlePaymentStatusCompleted(Entities.CustomerPayment customerPayment)
+        {
+            //Logger.Info($"PaymentManager.HandlePaymentStatusCompleted => Payment succeeded\n");
+            //await ActivateSubscription(customerPayment.SubscriptionId);
+
+            //// Update invoices status
+            //foreach (var invoicePayment in customerPayment.InvoicePayments)
+            //{
+            //    var invoice = await _invoiceManager.GetEntityByIdAsync(invoicePayment.InvoiceId);
+            //    Logger.Info($"PaymentManager.HandlePaymentStatusCompleted => Updating invoice status to 'Paid'\nInvoice Id : {invoice.Id}\n");
+            //    invoice.Status = InvoiceStatus.Paid;
+            //    await _invoiceManager.Update(invoice);
+            //}
+        }
+
+        /// <summary>
+        /// Sepa Direct Debit capture has been requested
+        /// </summary>
+        /// <param name="payment"></param>
+        /// <param name="customerPayment"></param>
+        /// <returns></returns>
+        private async Task HandlePaymentStatusCaptureRequested(Entities.CustomerPayment customerPayment)
+        {
+            //Logger.Info($"PaymentManager.HandlePaymentStatusCaptureRequested => Payment capture requested, awaiting confirmation\n");
+            //await ActivateSubscription(customerPayment.SubscriptionId);
+
+            //// Update invoices status
+            //foreach (var invoicePayment in customerPayment.InvoicePayments)
+            //{
+            //    var invoice = await _invoiceManager.GetEntityByIdAsync(invoicePayment.InvoiceId);
+            //    Logger.Info($"PaymentManager.HandlePaymentStatusCaptureRequested => Updating invoice status to 'AwaitingPaymentConfirmation'\nInvoice Id : {invoice.Id}\n");
+            //    invoice.Status = InvoiceStatus.AwaitingPaymentConfirmation;
+            //    await _invoiceManager.Update(invoice);
+            //}
+        }
+
+        private async Task HandlePaymentStatusFailed(Entities.CustomerPayment customerPayment)
+        {
+            //Logger.Info($"PaymentManager.HandlePaymentStatusFailed => Payment failed\n");
+            //bool notifiy = false;
+
+            //// Update invoices status
+            //foreach (var invoicePayment in customerPayment.InvoicePayments)
+            //{
+            //    var invoice = await _invoiceManager.GetEntityByIdAsync(invoicePayment.InvoiceId);
+            //    if (invoice.Status != InvoiceStatus.PaymentFailed)
+            //    {
+            //        notifiy = true;
+            //        Logger.Info($"PaymentManager.HandlePaymentStatusFailed => Updating invoice status to 'PaymentFailed'\nInvoice Id : {invoice.Id}\n");
+            //        invoice.Status = InvoiceStatus.PaymentFailed;
+            //        await _invoiceManager.Update(invoice);
+            //    }
+            //}
+
+            //if (notifiy)
+            //{
+            //    // Notify customer that payment failed and that they must update their payment details
+            //    var ingenicoSettings = _configuration.GetSection("Ingenico");
+            //    var paymentFailedDays = ingenicoSettings.GetValue<int>("PaymentFailedDays");
+            //    var subscription = await _subscriptionManager.GetEntityByIdAsync(customerPayment.SubscriptionId);
+            //    var user = _userRepository.FirstOrDefault(u => u.Id == subscription.Customer.OwnerId);
+
+            //    Logger.Info($"PaymentManager.HandlePaymentStatusFailed => Notifying customer of payment failure\n");
+            //    await _communicationManager.SendPaymentFailedCustomerNotification(
+            //            subscription.Customer.BillingEmail,
+            //            $"{user.Name} {user.Surname}",
+            //            subscription.Name,
+            //            subscription.Number,
+            //            user.Id,
+            //            paymentFailedDays
+            //        );
+            //}
+
         }
     }
 }
